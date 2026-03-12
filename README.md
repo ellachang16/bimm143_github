@@ -29,7 +29,7 @@ My classwork from [BIMM143](https://bioboot.github.io/bimm143_W26/schedule/) at 
 
 - Class 15 [Hands on with Git and Github](class15/class15.md)
 
-- Class 16 [Essential UNIX for bioinformatics](class16/unix_notes.md)
+- Class 16 [Essential UNIX for bioinformatics](class16/results.txt)
 
 - Class 17 [Analyzing sequencing data in the cloud](class17/class17.md)
 
