@@ -1,0 +1,259 @@
+---
+title: "Class 8:Analysis of Breast Cancer Cells"
+author: Ella Chang A17902833
+format: pdf
+toc: true
+---
+
+## Background
+
+In today's class we will be employing all the R techniques for data analysis that we have learned thus far - including the machine learning methods of clustering and PCA - to analyze real breast cancer biopsy data.
+
+## Data Import
+
+The data is in CSV format:
+
+```{r}
+wisc.df<-read.csv("WisconsinCancer.csv", row.names = 1)
+```
+
+wee peak at the data
+```{r}
+head(wisc.df, 3)
+```
+```{r}
+nrow(wisc.df)
+```
+
+>Q1. How many observations are in this dataset?
+
+There are 569 observations.
+>Q2. How many of the observations have a malignant diagnosis?
+
+There are 212 observations.
+
+```{r}
+sum (wisc.df$diagnosis =="M")
+```
+
+
+>Q3. How many variables/features in the data are suffixed with _mean?
+
+There are 10 variables in the data suffixed with _mean.
+
+```{r}
+length(grep("_mean$", colnames(wisc.df)))
+```
+
+We need to remove the `diagnosis` column before we do any further analysis of this dataset - we don't want to pass this to PCA etc. We will save it as a separate wee vector that we can use later to compare our findings to those of experts.
+
+```{r}
+wisc.data <- wisc.df[,-1]
+diagnosis <- wisc.df$diagnosis
+```
+
+## Principal Component Analysis (PCA)
+
+The main function is base R is called `prcomp()` we will use the optional argument `scale=TRUE` here as the data columns/features/dimensions are on very different scales in the original data set.
+
+```{r}
+wisc.pr <- prcomp(wisc.data, scale = T)
+```
+
+```{r}
+attributes(wisc.pr)
+```
+```{r}
+wisc.pr$x
+```
+```{r}
+library(ggplot2)
+
+ggplot(wisc.pr$x) +
+  aes(PC1, PC2, col=diagnosis)+
+  geom_point()
+```
+```{r}
+summary(wisc.pr)
+```
+```{r}
+pr.var <- wisc.pr$sdev^2
+pve <- pr.var / sum(pr.var)
+cum.pve <- cumsum(pve)
+which(cum.pve >= 0.70)[1]
+which(cum.pve >= 0.90)[1]
+
+```
+
+>Q4. From your results, what proportion of the original variance is captured by the first principal components (PC1)?
+
+0.4227
+>Q5. How many principal components (PCs) are required to describe at least 70% of the original variance in the data?
+
+There need to be 3 PC to descirbe at least 70% of the original variance.
+>Q6. How many principal components (PCs) are required to describe at least 90% of the original variance in the data?
+
+7 PC are required to describe at least 90% of the original variance.
+
+```{r}
+biplot(wisc.pr)
+```
+
+>Q7. What stands out to you about this plot? Is it easy or difficult to understand? Why?
+
+This plot is very cluttered and difficult to understand. The sample and variable labels all overlap, so nothing is communicated clearly.
+
+```{r}
+plot(wisc.pr$x[,1], wisc.pr$x[,2],
+     col = as.numeric(as.factor(diagnosis)),
+     xlab = "PC1", ylab = "PC2")
+
+```
+
+>Q8.Generate a similar plot for principal components 1 and 3. What do you notice about these plots?
+
+Compared to the PC1 vs PC2 plot, the PC1 vs PC3 plot usually shows weaker separation between the groups.
+```{r}
+# Repeat for components 1 and 3
+cols <- ifelse(diagnosis == "M", "red", "blue")
+
+plot(wisc.pr$x[, c(1,3)], col = cols,
+     xlab = "PC1", ylab = "PC3")
+
+```
+
+
+
+```{r}
+
+pr.var <- wisc.pr$sdev^2
+head(pr.var)
+## [1] 13.281608  5.691355  2.817949  1.980640  1.648731  1.207357
+# Variance explained by each principal component: pve
+pve <- pr.var/ sum(pr.var)
+# Plot variance explained for each principal component
+plot(pve, xlab = "Principal Component", 
+     ylab = "Proportion of Variance Explained", 
+     ylim = c(0, 1), type = "o")
+
+```
+```{r}
+# Alternative scree plot of the same data, note data driven y-axis
+barplot(pve, ylab = "Precent of Variance Explained",
+     names.arg=paste0("PC",1:length(pve)), las=2, axes = FALSE)
+axis(2, at=pve, labels=round(pve,2)*100 )
+```
+
+
+## Scree Plot
+
+```{r}
+## ggplot based graph
+#install.packages("factoextra")
+library(factoextra)
+fviz_eig(wisc.pr, addlabels = TRUE)
+```
+
+> Q9. For the first principal component, what is the component of the loading vector (i.e. wisc.pr$rotation[,1]) for the feature concave.points_mean? This tells us how much this original feature contributes to the first PC. Are there any features with larger contributions than this one?
+
+
+```{r}
+wisc.pr$rotation["concave.points_mean", "PC1"]
+```
+
+
+
+
+
+#4. Hierarchical clustering
+The goal of this section is to do hierarchical clustering of the original data. Recall from class that this type of clustering does not assume in advance the number of natural groups that exist in the data.
+```{r}
+data.scaled <- scale(wisc.data)
+data.dist <- dist(data.scaled)
+wisc.hclust <- hclust(data.dist, method = "complete")
+
+```
+>Q10.  Using the plot() and abline() functions, what is the height at which the clustering model has 4 clusters?
+
+```{r}
+plot(wisc.hclust)
+abline(h=19, col="red", lty=2)
+```
+
+
+```{r}
+wisc.hclust.clusters<-cutree(wisc.hclust, k=4)
+table(wisc.hclust.clusters)
+              
+```
+
+## Combining methods
+
+The idea here is that I can take my new variables (i.e. the scores on the PCs `wisc.pr$x)` that are better descriptors of the data-set than the original features (i.e. the 30 columns in `wisc.data`) and use these as a basis for clustering.
+
+```{r}
+pc.dist<- dist(wisc.pr$x[,1:3])
+wisc.pr.hclust <- hclust(pc.dist, method = "ward.D2")
+plot(wisc.pr.hclust)
+```
+
+```{r}
+grps <-cutree(wisc.pr.hclust, k=2)
+table(diagnosis)
+```
+
+I can now run `table()` with both my clustering `grps` and the expert `diagnosis`
+
+>Q13. How well does the newly created hclust model with two clusters separate out the two “M” and “B” diagnoses?
+
+```{r}
+table(grps, diagnosis)
+```
+>Q14. How well do the hierarchical clustering models you created in the previous sections (i.e. without first doing PCA) do in terms of separating the diagnoses? Again, use the table() function to compare the output of each model (wisc.hclust.clusters and wisc.pr.hclust.clusters) with the vector containing the actual diagnoses.
+
+wisc.hclust.clusters seems better.
+```{r}
+table(wisc.hclust.clusters, diagnosis)
+```
+
+Our cluster "1" has 179 "M" diagnosis 
+Our cluster "2" has 333 "B" diagnosis
+
+179 TP
+24 FP
+333 TN
+33 FN
+
+
+Sensitivity: TP/(TP+FN)
+
+```{r}
+179/(179+33)
+```
+
+Specificity: TN/(TN+FP)
+
+```{r}
+333/(333+24)
+```
+
+## Prediction
+
+We can use our prediction for unforseen cases.
+
+```{r}
+#url <- "new_samples.csv"
+url <- "https://tinyurl.com/new-samples-CSV"
+new <- read.csv(url)
+npc <- predict(wisc.pr, newdata=new)
+npc
+```
+```{r}
+plot(wisc.pr$x[,1:2], col=grps)
+points(npc[,1], npc[,2], col="blue", pch=16, cex=3)
+text(npc[,1], npc[,2], c(1,2), col="white")
+```
+
+>Q16. Which of these new patients should we prioritize for follow up based on your results?
+
+Patient 2 should be prioritized for follow up because the results.

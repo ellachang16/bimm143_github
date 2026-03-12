@@ -1,0 +1,190 @@
+---
+title: "class 14: RNASeq Mini-Project"
+author: "Ella Chang A17902833"
+format: pdf
+toc: TRUE
+---
+
+## Background
+
+The data for today's mini-project comes from a knock-down study of an important HOX gene.
+
+## Data Import
+
+```{r}
+countFile <- "GSE37704_featurecounts.csv"
+metaFile  <- "GSE37704_metadata.csv"
+
+colData   <- read.csv(metaFile, row.names = 1)
+countData <- read.csv(countFile, row.names = 1)
+
+```
+
+Have a wee peak at these:
+```{r}
+head(colData)
+head(countData)
+```
+
+###Clean up (data tidying)
+
+We need to remove the funny "length" column from our `countData` to make the columns match the rows in `colData`.
+
+```{r}
+countData <- countData[,-1]
+```
+
+Check match of `colData` and `countData`
+```{r}
+rownames(colData) == colnames(countData)
+```
+###Remove zero count genes
+
+```{r}
+to.keep <- rowSums(countData) >0
+countData <- countData[to.keep,]
+```
+## DESeq Analysis
+```{r, message=FALSE}
+library(DESeq2)
+```
+### Setting up the DESeq object
+
+```{r}
+
+dds <- DESeqDataSetFromMatrix(countData = countData,
+                              colData   = colData,
+                              design    = ~ condition)
+```
+
+
+### Running DESeq
+```{r}
+dds= DESeq(dds)
+```
+
+### Getting results
+```{r}
+res <- results(dds)
+res
+```
+
+##Volcano Plot
+```{r}
+library(ggplot2)
+
+mycols <- rep("gray", nrow(res))
+
+mycols[ abs(res$log2FoldChange) > 2 ] <- "blue"
+
+mycols[ res$padj > 0.01 ] <- "gray"
+
+ggplot(as.data.frame(res)) +
+  aes(log2FoldChange,
+      -log10(padj)) +
+  geom_point(col = mycols, alpha = 0.6) +
+  xlab("Log2(FoldChange)") +
+  ylab("-Log10(adjusted p-value)") +
+  geom_vline(xintercept = c(-2, 2)) +
+  geom_hline(yintercept = -log10(0.01))
+```
+
+##Add Annotation
+```{r}
+library(AnnotationDbi)
+library(org.Hs.eg.db)
+
+res$symbol <- mapIds(org.Hs.eg.db,
+                     keys      = row.names(res),
+                     keytype   = "ENSEMBL",
+                     column    = "SYMBOL",
+                     multiVals = "first")
+
+res$entrez <- mapIds(org.Hs.eg.db,
+                     keys      = row.names(res),
+                     keytype   = "ENSEMBL",
+                     column    = "ENTREZID",
+                     multiVals = "first")
+
+res$name <- mapIds(org.Hs.eg.db,
+                   keys      = row.names(res),
+                   keytype   = "ENSEMBL",
+                   column    = "GENENAME",
+                   multiVals = "first")
+
+head(res, 10)
+```
+```{r}
+res <- res[order(res$pvalue), ]
+write.csv(as.data.frame(res), file = "deseq_results.csv")
+```
+
+## Pathway Analysis
+```{r, message=FALSE}
+library(pathview)
+library(gage)
+library(gageData)
+
+data(kegg.sets.hs)
+data(sigmet.idx.hs)
+
+kegg.sets.hs <- kegg.sets.hs[sigmet.idx.hs]
+head(kegg.sets.hs, 3)
+```
+
+
+### KEGG
+
+```{r}
+foldchanges <- res$log2FoldChange
+names(foldchanges) <- res$entrez
+
+foldchanges <- foldchanges[!is.na(names(foldchanges))]
+
+head(foldchanges)
+```
+```{r}
+keggres <- gage(foldchanges, gsets = kegg.sets.hs)
+
+head(keggres$greater)
+head(keggres$less)
+```
+```{r}
+keggrespathways_up <- rownames(keggres$greater)[1:5]
+keggresids_up <- substr(keggrespathways_up, 1, 8)
+
+pathview(gene.data = foldchanges, pathway.id = keggresids_up, species = "hsa")
+```
+```{r}
+keggrespathways_down <- rownames(keggres$less)[1:5]
+keggresids_down <- substr(keggrespathways_down, 1, 8)
+
+pathview(gene.data = foldchanges, pathway.id = keggresids_down, species = "hsa")
+```
+![](hsa04110.pathview.png)
+
+### GO
+```{r}
+data(go.sets.hs)
+data(go.subs.hs)
+
+gobpsets <- go.sets.hs[go.subs.hs$BP]
+
+gobpres <- gage(foldchanges, gsets = gobpsets)
+
+lapply(gobpres, head)
+```
+
+### Reactome
+```{r}
+sig_genes <- res[res$padj <= 0.05 & !is.na(res$padj), "symbol"]
+print(paste("Total number of significant genes:", length(sig_genes)))
+
+write.table(sig_genes,
+            file = "significant_genes.txt",
+            row.names = FALSE,
+            col.names = FALSE,
+            quote = FALSE)
+```
+
+When you mine Reactome, the leading pathway is typically a cell-cycle/mitosis-related pathway for this HOXA1 knockdown dataset, which is as expected from the KEGG result where Cell cycle (hsa04110) is significantly enriched for downregulated genes. Discrepancies between Reactome and KEGG can occur because they employ distinct pathway definitions and curation, distinct gene membership, and your analysis relies on ID mapping completeness (Ensembl to Entrez/Symbol) and the statistical analysis (gage tests coordinated shifts in a ranked fold-change vector rather than simple “significant gene list” over-representation).
