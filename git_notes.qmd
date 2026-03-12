@@ -26,6 +26,13 @@ The core steps to using git involve
   In RStudio you just hit the "Commit" button and add a msg
   `git commit -m "your wee msg`
   
+5. Git Push to sync changes to GitHub
+  The Up arrow in RStudio
+  `git push`
+  
+6. Git Pull to sync FROM GitHub
+  The Down arrow in RStudio
+  `git pull`
   
 You can check your project "history" and status
   `git status`

@@ -1,0 +1,35 @@
+---
+title: "HW Class 6 (R Functions)"
+author: "Ella Chang"
+format: pdf
+---
+```{r}
+library(bio3d)
+```
+```{r}
+
+# install.packages("bio3d")
+library(bio3d)
+# INPUTS:The PDB ID assigned to the proteins
+# WHAT THIS FUNCTION DOES AND HOW TO USE IT: Reads each PDB structure, trims it to chain A and CA, extracts B-factors, and makes an overlay plot comparing all structures.
+# OUTPUT: Gives a plot of the B-factor of a protein along the chain A using the CA atoms.
+protein_analysis <- function(pdb_id) {
+ # Access the protein structure
+pdb <- read.pdb(pdb_id)
+
+#Trim the protein to Chain A and CA atoms
+pdb_chain <- trim.pdb(pdb, chain = "A", elety = "CA")
+
+#Extract B-factor
+pdb.b <- pdb_chain$atom$b
+
+#Plot B-factor
+plotb3(pdb.b, sse = pdb_chain, typ = "l", ylab = "Bfactor")
+
+}
+```
+```{r}
+protein_analysis("1AKE")
+```
+
+  
