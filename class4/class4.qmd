@@ -1,0 +1,13 @@
+---
+title: "class4"
+author: "Ella Chang A17902833"
+format: html
+---
+```{r}
+
+x <- 1:50
+plot(x)
+plot(x,sin(x), typ="l", col="blue", lwd=3, xlab= "Is it lunch time yet?")
+
+```
+
